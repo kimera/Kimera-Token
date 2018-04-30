@@ -12,7 +12,7 @@ furnished to do so, subject to the following conditions:
 **1.** The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
-**2.**Any use of this software must give credit to Kimera Systems, Inc. and to all contributors 
+**2.** Any use of this software must give credit to Kimera Systems, Inc. and to all contributors 
 of the project through backlinks if available of through mentions in the code.
 
 **3.** You must refrence and backlink to this github in the code commits.
