@@ -1,4 +1,4 @@
-pragma solidity ^0.4.21;
+pragma solidity ^0.4.23;
 
 /**
  * @title SafeMath
@@ -194,7 +194,7 @@ contract Ownable {
     * @dev The Ownable constructor sets the original `owner` of the contract to the sender
     * account.
     */
-    constructor() public {
+   constructor() public {
       owner = msg.sender;
     }
     
@@ -259,6 +259,7 @@ contract Pausable is Ownable {
     }
     
     function NotPauseable() onlyOwner public{
+        pause = false;
         canPause = false;
     }
 }
@@ -289,31 +290,39 @@ contract PausableToken is StandardToken, Pausable {
     }
 }
 
+/**
+ * @title Configurable
+ * @dev Configurable varriables of the contract
+ **/
 contract Configurable {
-    uint256 public constant cap = 1000000000;
-    uint256 public constant preSaleFirstCap = 25000000;
-    uint256 public constant preSaleSecondCap = 175000000; // 25,000,000 + 150,000,000
-    uint256 public constant preSaleThirdCap = 325000000; // 25,000,000 + 150,000,000 + 150,000,000
-    uint256 public constant preSaleFourthCap = 425000000; // 25,000,000 + 150,000,000 + 150,000,000 + 100,000,000
-    uint256 public constant privateLimit = 200000000;
+    uint256 public constant cap = 1000000000*10**18;
+    uint256 public constant preSaleFirstCap = 25000000*10**18;
+    uint256 public constant preSaleSecondCap = 175000000*10**18; // 25,000,000 + 150,000,000
+    uint256 public constant preSaleThirdCap = 325000000*10**18; // 25,000,000 + 150,000,000 + 150,000,000
+    uint256 public constant preSaleFourthCap = 425000000*10**18; // 25,000,000 + 150,000,000 + 150,000,000 + 100,000,000
+    uint256 public constant privateLimit = 200000000*10**18;
     uint256 public constant privateDiscountTokens = 0;
-    uint256 public constant basePrice = 2777778; // tokens per 1000 ether
-    uint32 public constant preSaleDiscountPrice = 11111111; // pre sale 1 stage > 10 ETH or pre sale private discount 75% tokens per 1000 ether
-    uint32 public constant preSaleFirstPrice = 5555556; // pre sale 1 stage < 10 ETH discount 50%, tokens per 1000 ether
-    uint32 public constant preSaleSecondPrice = 5555556; // pre sale 2 stage discount 50%, tokens per 1000 ether
-    uint32 public constant preSaleThirdPrice = 4273504; // pre sale 3 stage discount 35%, tokens per 1000 ether
-    uint32 public constant preSaleFourthPrice = 3472222; // pre sale 4 stage discount 20%, tokens per 1000 ether
-    uint32 public constant privateDiscountPrice = 7936508; // sale private discount 65%, tokens per 1000 ether
+    uint256 public constant basePrice = 2777777777777777777778; // tokens per 1 ether
+    uint256 public constant preSaleDiscountPrice = 11111111111111111111111; // pre sale 1 stage > 10 ETH or pre sale private discount 75% tokens per 1 ether
+    uint256 public constant preSaleFirstPrice = 5555555555555555555556; // pre sale 1 stage < 10 ETH discount 50%, tokens per 1 ether
+    uint256 public constant preSaleSecondPrice = 5555555555555555555556; // pre sale 2 stage discount 50%, tokens per 1 ether
+    uint256 public constant preSaleThirdPrice = 4273504273504273504274; // pre sale 3 stage discount 35%, tokens per 1 ether
+    uint256 public constant preSaleFourthPrice = 3472222222222222222222; // pre sale 4 stage discount 20%, tokens per 1 ether
+    uint256 public constant privateDiscountPrice = 7936507936507936507937; // sale private discount 65%, tokens per 1 ether
     uint256 public icoStartDate = 0;
     uint256 public constant timeToBeBurned = 1 years;
-    uint256 public constant companyReserve = 1000000000;
+    uint256 public constant companyReserve = 1000000000*10**18;
     uint256 public remainingTokens = 0;
     bool public icoFinalized = false;
+    uint256 public icoEnd = 0;
     uint256 public constant preSaleStartDate = 1525046400; // 30/04/2018 00:00:00
 }
 
 contract CrowdsaleToken is PausableToken, Configurable {
-    enum Stages {
+    /**
+     * 
+     **/
+     enum Stages {
         preSale, 
         pause, 
         sale, 
@@ -329,19 +338,21 @@ contract CrowdsaleToken is PausableToken, Configurable {
         pause();
         balances[owner] = balances[owner].add(companyReserve);
         totalSupply_ = totalSupply_.add(companyReserve);
-        emit Transfer(address(this), owner, companyReserve);
+        emit Transfer(address(this), owner, companyReserve);        
     }
 
     function () public payable {
         require(preSaleStartDate < now);
         require(currentStage != Stages.pause);
         require(currentStage != Stages.icoEnd);
+        
         uint256 tokens = tokensAmount(msg.value);
         require (tokens > 0);
         balances[msg.sender] = balances[msg.sender].add(tokens);
         totalSupply_ = totalSupply_.add(tokens);
         require(totalSupply_ <= cap.add(companyReserve));
         emit Transfer(address(this), msg.sender, tokens);
+        owner.transfer(address(this).balance);
     }
     
     function tokensAmount (uint256 _wei) internal returns (uint256) {
@@ -351,68 +362,85 @@ contract CrowdsaleToken is PausableToken, Configurable {
         uint256 stagePrice = 0;
         uint256 totalSold = totalSupply_.sub(companyReserve);
         
+        // 75% discount
         if (currentStage == Stages.preSale && totalSold <= preSaleFirstCap) {
           if (preSaleDiscountList[msg.sender] || msg.value >= 10 ether) 
             stagePrice = preSaleDiscountPrice;
           else stagePrice = preSaleFirstPrice;
-            stageTokens = _wei.mul(stagePrice).div(1000 ether);
+            stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(stageTokens) <= preSaleFirstCap) {
             tokens = tokens.add(stageTokens);
             return tokens;
           } else {
             stageTokens = preSaleFirstCap.sub(totalSold);
-            stageWei = stageTokens.mul(1000 ether).div(stagePrice);
+            stageWei = stageTokens.mul(1 ether).div(stagePrice);
             tokens = tokens.add(stageTokens);
             _wei = _wei.sub(stageWei);
           }
         }
         
+        // 50% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleSecondCap) {
-          stagePrice = preSaleSecondPrice;
-          stageTokens = _wei.mul(stagePrice).div(1000 ether);
+          if (saleDiscountList[msg.sender]) {
+            stagePrice = privateDiscountPrice;
+          } else {
+              stagePrice = preSaleSecondPrice;
+          }
+          stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(tokens).add(stageTokens) <= preSaleSecondCap) {
             tokens = tokens.add(stageTokens);
             return tokens;
           } else {
             stageTokens = preSaleSecondCap.sub(totalSold).sub(tokens);
-            stageWei = stageTokens.mul(1000 ether).div(stagePrice);
+            stageWei = stageTokens.mul(1 ether).div(stagePrice);
             tokens = tokens.add(stageTokens);
             _wei = _wei.sub(stageWei);
           }
         }
         
+        // 35% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleThirdCap) {
-          stagePrice = preSaleThirdPrice;
-          stageTokens = _wei.mul(stagePrice).div(1000 ether);
+          if (saleDiscountList[msg.sender]) {
+            stagePrice = privateDiscountPrice;
+          } else {
+            stagePrice = preSaleThirdPrice;
+          }
+          stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(tokens).add(stageTokens) <= preSaleThirdCap) {
             tokens = tokens.add(stageTokens);
             return tokens;
           } else {
             stageTokens = preSaleThirdCap.sub(totalSold).sub(tokens);
-            stageWei = stageTokens.mul(1000 ether).div(stagePrice);
+            stageWei = stageTokens.mul(1 ether).div(stagePrice);
             tokens = tokens.add(stageTokens);
             _wei = _wei.sub(stageWei);
           }
         }
         
+        // 20% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleFourthCap) {
-          stagePrice = preSaleFourthPrice;
-          stageTokens = _wei.mul(stagePrice).div(1000 ether);
+          if (saleDiscountList[msg.sender]) {
+            stagePrice = privateDiscountPrice;
+          } else {
+            stagePrice = preSaleFourthPrice;
+          }
+          
+          stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(tokens).add(stageTokens) <= preSaleFourthCap) {
             tokens = tokens.add(stageTokens);
             return tokens;
           } else {
             stageTokens = preSaleFourthCap.sub(totalSold).sub(tokens);
-            stageWei = stageTokens.mul(1000 ether).div(stagePrice);
+            stageWei = stageTokens.mul(1 ether).div(stagePrice);
             tokens = tokens.add(stageTokens);
             _wei = _wei.sub(stageWei);
             currentStage = Stages.pause;
             
-            if (_wei > 0) 
+            if(_wei > 0)
                 msg.sender.transfer(_wei);
             return tokens;
           }
@@ -421,7 +449,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
         if (currentStage == Stages.sale) {
           if (saleDiscountList[msg.sender]) {
             stagePrice = privateDiscountPrice;
-            stageTokens = _wei.mul(stagePrice).div(1000 ether);
+            stageTokens = _wei.mul(stagePrice).div(1 ether);
             uint256 ceil = totalSold.add(privateLimit);
             
             if (ceil > cap) {
@@ -434,7 +462,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
             } else {
               stageTokens = ceil.sub(totalSold);
               tokens = tokens.add(stageTokens);
-              stageWei = stageTokens.mul(1000 ether).div(stagePrice);
+              stageWei = stageTokens.mul(1 ether).div(stagePrice);
               _wei = _wei.sub(stageWei);
             }
             
@@ -447,14 +475,14 @@ contract CrowdsaleToken is PausableToken, Configurable {
           }
           
           stagePrice = basePrice;
-          stageTokens = _wei.mul(stagePrice).div(1000 ether);
+          stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(tokens).add(stageTokens) <= cap) {
             tokens = tokens.add(stageTokens);
             return tokens;
           } else {
             stageTokens = cap.sub(totalSold).sub(tokens);
-            stageWei = stageTokens.mul(1000 ether).div(stagePrice);
+            stageWei = stageTokens.mul(1 ether).div(stagePrice);
             tokens = tokens.add(stageTokens);
             _wei = _wei.sub(stageWei);
             endIco();
@@ -488,7 +516,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
         require(currentStage == Stages.icoEnd);
         require(remainingTokens > 0);
         
-        if (now > icoStartDate.add(timeToBeBurned)) 
+        if (now > icoEnd.add(timeToBeBurned)) 
             remainingTokens = 0;
         
         if (_value <= remainingTokens) {
@@ -505,15 +533,33 @@ contract CrowdsaleToken is PausableToken, Configurable {
         require(!icoFinalized);
             icoFinalized = true;
         
-        if (currentStage != Stages.icoEnd) 
+        if (currentStage != Stages.icoEnd){
              endIco();
+             icoEnd = now;
+        }
         remainingTokens = cap.add(companyReserve).sub(totalSupply_);
         owner.transfer(address(this).balance);
+    }
+    
+    function isFirstSale() public view returns(bool){
+        return totalSupply_.sub(companyReserve) < preSaleFirstCap;
+    }
+    
+    function isSecondSale() public view returns(bool){
+        return (totalSupply_.sub(companyReserve) < preSaleSecondCap) && (totalSupply_.sub(companyReserve) > preSaleFirstCap);
+    }
+    
+    function isThirdSale() public view returns(bool){
+        return (totalSupply_.sub(companyReserve) < preSaleThirdCap) && (totalSupply_.sub(companyReserve) > preSaleSecondCap);
+    }
+    
+    function isFourthSale() public view returns(bool){
+        return (totalSupply_.sub(companyReserve) < preSaleFourthCap) && (totalSupply_.sub(companyReserve) > preSaleThirdCap);
     }
 }
 
 contract KimeraToken is CrowdsaleToken {
-    string public constant name = "KIMERA Token";
+    string public constant name = "KIMERA Coin";
     string public constant symbol = "KIMERA";
     uint32 public constant decimals = 18;
 }
