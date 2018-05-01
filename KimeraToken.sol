@@ -259,7 +259,6 @@ contract Pausable is Ownable {
     }
     
     function NotPauseable() onlyOwner public{
-        pause = false;
         canPause = false;
     }
 }
@@ -338,21 +337,22 @@ contract CrowdsaleToken is PausableToken, Configurable {
         pause();
         balances[owner] = balances[owner].add(companyReserve);
         totalSupply_ = totalSupply_.add(companyReserve);
-        emit Transfer(address(this), owner, companyReserve);        
+        emit Transfer(address(this), owner, companyReserve);
+        
     }
 
     function () public payable {
         require(preSaleStartDate < now);
         require(currentStage != Stages.pause);
         require(currentStage != Stages.icoEnd);
-        
+        require(msg.value > 0);
         uint256 tokens = tokensAmount(msg.value);
         require (tokens > 0);
         balances[msg.sender] = balances[msg.sender].add(tokens);
         totalSupply_ = totalSupply_.add(tokens);
         require(totalSupply_ <= cap.add(companyReserve));
         emit Transfer(address(this), msg.sender, tokens);
-        owner.transfer(address(this).balance);
+        owner.transfer(msg.value);
     }
     
     function tokensAmount (uint256 _wei) internal returns (uint256) {
@@ -419,7 +419,6 @@ contract CrowdsaleToken is PausableToken, Configurable {
             _wei = _wei.sub(stageWei);
           }
         }
-        
         // 20% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleFourthCap) {
           if (saleDiscountList[msg.sender]) {
@@ -427,7 +426,6 @@ contract CrowdsaleToken is PausableToken, Configurable {
           } else {
             stagePrice = preSaleFourthPrice;
           }
-          
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(tokens).add(stageTokens) <= preSaleFourthCap) {
