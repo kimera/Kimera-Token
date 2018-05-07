@@ -8,7 +8,7 @@ A good foundation of Solidity or JavaScript will be extremely helpful but is not
 
 ##### Token
 
-Make sure that you have an ERC20 compatible Ethereum wallet and wallet capable of interacting with smart contracts. To execute the token code: For MyEtherWallet; past the token code into the remix online compiler. Copy the EVM code and paste into the MyEtherWallet execute smart contract. pay the gas price, enjoy your tokens. (If these steps are copied it will not be the actual Kimera Token, but a different smart contract and different address with the same functionality as the Kimera Token)
+Make sure that you have an ERC20 compatible Ethereum wallet and wallet capable of interacting with smart contracts. To execute the token code: For MyEtherWallet; paste the token code into the remix online compiler. Copy the EVM code and paste into the MyEtherWallet execute smart contract. pay the gas price, enjoy your tokens. (If these steps are copied it will not be the actual Kimera Token, but a different smart contract and different address with the same functionality as the Kimera Token)
 
 ### Authors
 
