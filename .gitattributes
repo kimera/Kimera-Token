@@ -3,3 +3,4 @@
 *.json linguist-language=JSON
 *.evm linguist-language=Bytecode
 *.js linguist-language=JavaScript
+*.asm linguist-language=Assembly
