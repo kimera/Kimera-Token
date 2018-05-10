@@ -357,8 +357,8 @@ contract Configurable {
     uint256 public publicEventTokens = 0;
     bool public privateEventActive = false;
     bool public publicEventActive = false;
-    uint256 internal privateRate = 0;
-    uint256 internal publicRate = 0;
+    uint256 public privateRate = 0;
+    uint256 public publicRate = 0;
 }
 
 /**
@@ -435,8 +435,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
         }
         
         // if member is part of a private sale event
-       if(privateEventActive == true && privateEventTokens > 0 
-        && customPrivateSale[msg.sender] == true){
+       if(customPrivateSale[msg.sender] == true && privateEventActive == true && privateEventTokens > 0){
             stagePrice = privateRate;
             stageTokens = _wei.mul(stagePrice).div(1 ether);
             if(stageTokens <= privateEventTokens){
@@ -444,7 +443,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 privateEventTokens = privateEventTokens.sub(tokens);
                 return tokens;
             } else {
-                stageTokens = stageTokens.sub(privateEventTokens);
+                stageTokens = privateEventTokens;
+                privateEventActive = false;
                 stageWei = stageTokens.mul(1 ether).div(stagePrice);
                 tokens = tokens.add(stageTokens);
                 privateEventTokens = privateEventTokens.sub(tokens);
@@ -550,7 +550,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 publicEventTokens = publicEventTokens.sub(tokens);
                 return tokens;
             } else {
-                stageTokens = stageTokens.sub(publicEventTokens);
+                stageTokens = publicEventTokens;
+                publicEventActive = false;
                 stageWei = stageTokens.mul(1 ether).div(stagePrice);
                 tokens = tokens.add(stageTokens);
                 publicEventTokens = publicEventTokens.sub(tokens);
@@ -697,7 +698,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
      * @param _address : address of member to check
      * @param memberType : member type to check: privateSale, preSlae, privateEvent or publicEvent
      **/
-    function isMemberOf(address _address, string memberType) public returns (bool){
+    function isMemberOf(address _address, string memberType) public view returns (bool){
         // Set private presale member
         if(compareStrings(memberType, "privateSale"))
             return preSaleDiscountList[_address];
