@@ -1,3 +1,4 @@
 
 *.sol linguist-language=Solidity
 *.json linguist-language=JSON
+*.evm linguist-language=Bytecode
