@@ -420,6 +420,13 @@ contract CrowdsaleToken is PausableToken, Configurable {
     }
     
     /**
+     * @dev return extra wei to sender
+     **/
+    function returnExtra(address _to, uint256 _value) internal returns (bool) {
+        return super.transfer(_to, _value);
+    }
+    
+    /**
      * @dev tokensAmount calculates the amount of tokens the sender is purchasing 
      **/
     function tokensAmount (uint256 _wei) internal returns (uint256) {
@@ -446,8 +453,10 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 privateEventTokens = privateEventTokens.sub(tokens);
                 
                 if(extraWei > 0){
+                    msg.value = msg.value.sub(extraWei);
+                    if(!returnExtra(msg.sender, extraWei))
+                        throw;
                     emit Transfer(address(this), msg.sender, extraWei);
-                    msg.value.sub(extraWei);
                 }
                 
                 return tokens;
@@ -471,7 +480,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 publicEventTokens = publicEventTokens.sub(tokens);
                 
                 if(extraWei > 0){
-                    msg.value.sub(extraWei);
+                    msg.value = msg.value.sub(extraWei);
+                    if(!returnExtra(msg.sender, extraWei))
+                        throw;
                     emit Transfer(address(this), msg.sender, extraWei);
                 }
                 
@@ -500,7 +511,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
             tokens = tokens.add(stageTokens);
             
             if(extraWei > 0){
-                msg.value.sub(extraWei);
+                msg.value = msg.value.sub(extraWei);
+                if(!returnExtra(msg.sender, extraWei))
+                        throw;
                 emit Transfer(address(this), msg.sender, extraWei);
             }
             
@@ -527,7 +540,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
             tokens = tokens.add(stageTokens);
             
             if(extraWei > 0){
-                msg.value.sub(extraWei);
+                msg.value = msg.value.sub(extraWei);
+                if(!returnExtra(msg.sender, extraWei))
+                        throw;
                 emit Transfer(address(this), msg.sender, extraWei);
             }
         
@@ -553,7 +568,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
             tokens = tokens.add(stageTokens);
            
             if(extraWei > 0){
-                msg.value.sub(extraWei);
+                msg.value = msg.value.sub(extraWei);
+                if(!returnExtra(msg.sender, extraWei))
+                        throw;
                 emit Transfer(address(this), msg.sender, extraWei);
             }
         
@@ -580,7 +597,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
             tokens = tokens.add(stageTokens);
             
             if(extraWei > 0){
-                msg.value.sub(extraWei);
+                msg.value = msg.value.sub(extraWei);
+                if(!returnExtra(msg.sender, extraWei))
+                        throw;
                 emit Transfer(address(this), msg.sender, extraWei);
             }
         
@@ -594,8 +613,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
             
             if(_wei > 0 || extraWei > 0){
                 _wei = _wei.add(extraWei);
-                msg.value.sub(_wei);
-                emit Transfer(address(this), msg.sender, extraWei);
+                if(!returnExtra(msg.sender, _wei))
+                        throw;
+                emit Transfer(address(this), msg.sender, _wei);
             }
             return tokens;
           }
@@ -616,7 +636,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
               tokens = tokens.add(stageTokens);
              
               if(extraWei > 0){
-                msg.value.sub(extraWei);
+                msg.value = msg.value.sub(extraWei);
+                if(!returnExtra(msg.sender, extraWei))
+                        throw;
                 emit Transfer(address(this), msg.sender, extraWei);
             }
         
@@ -632,7 +654,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
               endIco();
               if(_wei > 0 || extraWei > 0){
                 _wei = _wei.add(extraWei);
-                msg.value.sub(_wei);
+                msg.value = msg.value.sub(_wei);
+                if(!returnExtra(msg.sender, _wei))
+                        throw;
                 emit Transfer(address(this), msg.sender, _wei);
               }
               return tokens;
@@ -646,7 +670,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
             tokens = tokens.add(stageTokens);
             
             if(extraWei > 0){
-                msg.value.sub(extraWei);
+                msg.value = msg.value.sub(extraWei);
+                if(!returnExtra(msg.sender, extraWei))
+                        throw;
                 emit Transfer(address(this), msg.sender, extraWei);
             }
         
@@ -661,7 +687,9 @@ contract CrowdsaleToken is PausableToken, Configurable {
             
             if(_wei > 0 || extraWei > 0){
                 _wei = _wei.add(extraWei);
-                msg.value.sub(_wei);
+                msg.value = msg.value.sub(_wei);
+                if(!returnExtra(msg.sender, _wei))
+                        throw;
                emit Transfer(address(this), msg.sender, _wei);
             }
             return tokens;
