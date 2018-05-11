@@ -357,6 +357,8 @@ contract Configurable {
     uint256 public publicEventTokens = 0;
     bool public privateEventActive = false;
     bool public publicEventActive = false;
+    uint256 public publicMin = 0;
+    uint256 public privateMin = 0;
     uint256 public privateRate = 0;
     uint256 public publicRate = 0;
 }
@@ -377,10 +379,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
     }
   
     Stages currentStage;
-    mapping(address => bool) preSaleDiscountList; // 75% discount when less than 10 ETH exception
     mapping(address => bool) saleDiscountList; // 65% private discount
     mapping(address => bool) customPrivateSale; // Private discount for events
-    mapping(address => bool) customPublicSale; // Public discounts for events
     
     /**
      * @dev constructor of CrowdsaleToken
@@ -397,6 +397,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
      * @dev fallback function to send ether to for Crowd sale
      **/
     function () public payable {
+        require(msg.value >= minContribute);
         buyTokens();
     }
     
@@ -404,6 +405,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
      * @dev function to buy tokens with
      **/
     function buyTokens() public payable {
+        require(msg.value >= minContribute);
         require(preSaleStartDate < now);
         require(currentStage != Stages.pause);
         require(currentStage != Stages.icoEnd);
@@ -431,16 +433,23 @@ contract CrowdsaleToken is PausableToken, Configurable {
         // if sender sent more then maximum spending amount
         if(_wei > maxAmmount){
             extraWei = _wei.sub(maxAmmount);
-            _wei = maxAmmount;
+            _wei = _wei.sub(maxAmmount);
         }
         
         // if member is part of a private sale event
-       if(customPrivateSale[msg.sender] == true && privateEventActive == true && privateEventTokens > 0){
+       if(customPrivateSale[msg.sender] == true && msg.value >= privateMin && privateEventActive == true && privateEventTokens > 0){
             stagePrice = privateRate;
             stageTokens = _wei.mul(stagePrice).div(1 ether);
+           
             if(stageTokens <= privateEventTokens){
                 tokens = tokens.add(stageTokens);
                 privateEventTokens = privateEventTokens.sub(tokens);
+                
+                if(extraWei > 0){
+                    emit Transfer(address(this), msg.sender, extraWei);
+                    msg.value.sub(extraWei);
+                }
+                
                 return tokens;
             } else {
                 stageTokens = privateEventTokens;
@@ -452,9 +461,35 @@ contract CrowdsaleToken is PausableToken, Configurable {
             }
         }
         
+         // if public event is active and tokens available
+        if(publicEventActive == true && publicEventTokens > 0 && msg.value >= publicMin) {
+            stagePrice = publicRate;
+            stageTokens = _wei.mul(stagePrice).div(1 ether);
+           
+            if(stageTokens <= publicEventTokens){
+                tokens = tokens.add(stageTokens);
+                publicEventTokens = publicEventTokens.sub(tokens);
+                
+                if(extraWei > 0){
+                    msg.value.sub(extraWei);
+                    emit Transfer(address(this), msg.sender, extraWei);
+                }
+                
+                return tokens;
+            } else {
+                stageTokens = publicEventTokens;
+                publicEventActive = false;
+                stageWei = stageTokens.mul(1 ether).div(stagePrice);
+                tokens = tokens.add(stageTokens);
+                publicEventTokens = publicEventTokens.sub(tokens);
+                _wei = _wei.sub(stageWei);
+            }
+        }
+        
+        
         // 75% discount
         if (currentStage == Stages.preSale && totalSold <= preSaleFirstCap) {
-          if (preSaleDiscountList[msg.sender] || msg.value >= 10 ether) 
+          if (msg.value >= 10 ether) 
             stagePrice = preSaleDiscountPrice;
           else 
             stagePrice = preSaleFirstPrice;
@@ -463,6 +498,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           if (totalSold.add(stageTokens) <= preSaleFirstCap) {
             tokens = tokens.add(stageTokens);
+            
+            if(extraWei > 0){
+                msg.value.sub(extraWei);
+                emit Transfer(address(this), msg.sender, extraWei);
+            }
+            
             return tokens;
           } else {
             stageTokens = preSaleFirstCap.sub(totalSold);
@@ -484,6 +525,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           if (totalSold.add(tokens).add(stageTokens) <= preSaleSecondCap) {
             tokens = tokens.add(stageTokens);
+            
+            if(extraWei > 0){
+                msg.value.sub(extraWei);
+                emit Transfer(address(this), msg.sender, extraWei);
+            }
+        
             return tokens;
           } else {
             stageTokens = preSaleSecondCap.sub(totalSold).sub(tokens);
@@ -504,6 +551,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           if (totalSold.add(tokens).add(stageTokens) <= preSaleThirdCap) {
             tokens = tokens.add(stageTokens);
+           
+            if(extraWei > 0){
+                msg.value.sub(extraWei);
+                emit Transfer(address(this), msg.sender, extraWei);
+            }
+        
             return tokens;
           } else {
             stageTokens = preSaleThirdCap.sub(totalSold).sub(tokens);
@@ -514,6 +567,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
         }
         // 20% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleFourthCap) {
+          
           if (saleDiscountList[msg.sender]) {
             stagePrice = privateDiscountPrice; // private member %65 discount
           } else {
@@ -524,6 +578,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           if (totalSold.add(tokens).add(stageTokens) <= preSaleFourthCap) {
             tokens = tokens.add(stageTokens);
+            
+            if(extraWei > 0){
+                msg.value.sub(extraWei);
+                emit Transfer(address(this), msg.sender, extraWei);
+            }
+        
             return tokens;
           } else {
             stageTokens = preSaleFourthCap.sub(totalSold).sub(tokens);
@@ -533,30 +593,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
             currentStage = Stages.pause;
             
             if(_wei > 0 || extraWei > 0){
-                _wei += _wei + extraWei;
-                msg.sender.transfer(_wei);
+                _wei = _wei.add(extraWei);
+                msg.value.sub(_wei);
+                emit Transfer(address(this), msg.sender, extraWei);
             }
             return tokens;
           }
-        }
-        
-        // if private sales are over but sender is member of public sale event
-        if(publicEventActive == true && publicEventTokens > 0 
-        && customPublicSale[msg.sender] == true){
-            stagePrice = publicRate;
-            stageTokens = _wei.mul(stagePrice).div(1 ether);
-            if(stageTokens <= publicEventTokens){
-                tokens = tokens.add(stageTokens);
-                publicEventTokens = publicEventTokens.sub(tokens);
-                return tokens;
-            } else {
-                stageTokens = publicEventTokens;
-                publicEventActive = false;
-                stageWei = stageTokens.mul(1 ether).div(stagePrice);
-                tokens = tokens.add(stageTokens);
-                publicEventTokens = publicEventTokens.sub(tokens);
-                _wei = _wei.sub(stageWei);
-            }
         }
         
         // 0% discount
@@ -572,6 +614,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
             
             if (totalSold.add(stageTokens) <= ceil) {
               tokens = tokens.add(stageTokens);
+             
+              if(extraWei > 0){
+                msg.value.sub(extraWei);
+                emit Transfer(address(this), msg.sender, extraWei);
+            }
+        
               return tokens;          
             } else {
               stageTokens = ceil.sub(totalSold);
@@ -582,8 +630,11 @@ contract CrowdsaleToken is PausableToken, Configurable {
             
             if (ceil == cap) {
               endIco();
-              if (_wei > 0) 
-                msg.sender.transfer(_wei);
+              if(_wei > 0 || extraWei > 0){
+                _wei = _wei.add(extraWei);
+                msg.value.sub(_wei);
+                emit Transfer(address(this), msg.sender, _wei);
+              }
               return tokens;
             }
           }
@@ -593,6 +644,13 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           if (totalSold.add(tokens).add(stageTokens) <= cap) {
             tokens = tokens.add(stageTokens);
+            
+            if(extraWei > 0){
+                msg.value.sub(extraWei);
+                emit Transfer(address(this), msg.sender, extraWei);
+            }
+        
+                
             return tokens;
           } else {
             stageTokens = cap.sub(totalSold).sub(tokens);
@@ -601,8 +659,11 @@ contract CrowdsaleToken is PausableToken, Configurable {
             _wei = _wei.sub(stageWei);
             endIco();
             
-            if (_wei > 0) 
-                msg.sender.transfer(_wei);
+            if(_wei > 0 || extraWei > 0){
+                _wei = _wei.add(extraWei);
+                msg.value.sub(_wei);
+               emit Transfer(address(this), msg.sender, _wei);
+            }
             return tokens;
           }      
         }
@@ -624,19 +685,22 @@ contract CrowdsaleToken is PausableToken, Configurable {
      * @param isActive : boolean that stats is the event is active or not
      * @param eventType : string that says is the event is public or private
      **/
-    function setCustomEvent(uint256 tokenCap, uint256 eventRate, bool isActive, string eventType) public onlyOwner{
+    function setCustomEvent(uint256 tokenCap, uint256 eventRate, bool isActive, string eventType, uint256 minAmount) public onlyOwner {
         require(tokenCap > 0);
         require(eventRate > 0);
+        require(minAmount > 0);
         
         if(compareStrings(eventType, "private")){
             privateEventTokens = tokenCap;
             privateRate = eventRate;
             privateEventActive = isActive;
+            privateMin = minAmount;
         }
         else if(compareStrings(eventType, "public")){
             publicEventTokens = tokenCap;
             publicRate = eventRate;
             publicEventActive = isActive;
+            publicMin = minAmount;
         }
     }
     
@@ -679,37 +743,25 @@ contract CrowdsaleToken is PausableToken, Configurable {
      * @param isActiveMember : bool to set the member at active or not
      **/
     function setDiscountMember(address _address, string memberType, bool isActiveMember) public onlyOwner {
-        // Set private presale member
-        if(compareStrings(memberType, "privateSale"))
-            preSaleDiscountList[_address] = isActiveMember;
         // Set discount sale member    
-        else if(compareStrings(memberType, "preSale"))
+        if(compareStrings(memberType, "preSale"))
             saleDiscountList[_address] = isActiveMember;
         // Set private event member
         else if(compareStrings(memberType,"privateEvent"))
-            customPrivateSale[_address] = isActiveMember;
-        // Set public event member
-        else if(compareStrings(memberType, "publicEvent"))
             customPrivateSale[_address] = isActiveMember;
     }
     
     /**
      * @dev checks if an address is a member of a specific address
      * @param _address : address of member to check
-     * @param memberType : member type to check: privateSale, preSlae, privateEvent or publicEvent
+     * @param memberType : member type to check: preSlae, privateEvent
      **/
     function isMemberOf(address _address, string memberType) public view returns (bool){
-        // Set private presale member
-        if(compareStrings(memberType, "privateSale"))
-            return preSaleDiscountList[_address];
         // Set discount sale member    
-        else if(compareStrings(memberType, "preSale"))
+        if(compareStrings(memberType, "preSale"))
             return saleDiscountList[_address];
         // Set private event member
         else if(compareStrings(memberType,"privateEvent"))
-            return customPrivateSale[_address];
-        // Set public event member
-        else if(compareStrings(memberType, "publicEvent"))
             return customPrivateSale[_address];
     }
 
@@ -767,13 +819,13 @@ contract CrowdsaleToken is PausableToken, Configurable {
         if(totalSupply_.sub(companyReserve) < preSaleFirstCap)
             return "300% Bonus!";
         else if((totalSupply_.sub(companyReserve) < preSaleSecondCap) && (totalSupply_.sub(companyReserve) > preSaleFirstCap))
-            return "285% Bonus!";
+            return "100% Bonus!";
         else if((totalSupply_.sub(companyReserve) < preSaleThirdCap) && (totalSupply_.sub(companyReserve) > preSaleSecondCap))
-            return "200% Bonus!";
+            return "54% Bonus!";
         else if((totalSupply_.sub(companyReserve) < preSaleFourthCap) && (totalSupply_.sub(companyReserve) > preSaleThirdCap))
-            return "80% Bonus!";
+            return "25% Bonus!";
         else
-            return "No Bonus... Sorry.";
+            return "No Bonus... Sorry...#BOTB";
     }
 }
 
