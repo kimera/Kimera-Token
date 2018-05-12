@@ -410,27 +410,27 @@ contract CrowdsaleToken is PausableToken, Configurable {
         require(currentStage != Stages.pause);
         require(currentStage != Stages.icoEnd);
         require(msg.value > 0);
-        uint256 tokens = tokensAmount(msg.value);
-        require (tokens > 0);
-        balances[msg.sender] = balances[msg.sender].add(tokens);
-        totalSupply_ = totalSupply_.add(tokens);
+        uint256[] memory tokens = tokensAmount(msg.value);
+        require (tokens[0] > 0);
+        balances[msg.sender] = balances[msg.sender].add(tokens[0]);
+        totalSupply_ = totalSupply_.add(tokens[0]);
         require(totalSupply_ <= cap.add(companyReserve));
-        emit Transfer(address(this), msg.sender, tokens);
-        owner.transfer(msg.value);
+        emit Transfer(address(this), msg.sender, tokens[0]);
+        uint256 ethValue = msg.value.sub(tokens[1]);
+        owner.transfer(ethValue);
+        if(tokens[1] > 0){
+            msg.sender.transfer(tokens[1]);
+            emit Transfer(address(this), msg.sender, tokens[1]);
+        }
     }
     
-    /**
-     * @dev return extra wei to sender
-     **/
-    function returnExtra(address _to, uint256 _value) internal returns (bool) {
-        return super.transferFrom(address(this), _to, _value);
-    }
     
     /**
      * @dev tokensAmount calculates the amount of tokens the sender is purchasing 
      **/
-    function tokensAmount (uint256 _wei) internal returns (uint256) {
-        uint256 tokens = 0;
+    function tokensAmount (uint256 _wei) internal returns (uint256[]) {
+        uint256[] memory tokens = new uint256[](7);
+        tokens[0] = tokens[1] = 0;
         uint256 stageWei = 0;
         uint256 stageTokens = 0;
         uint256 stagePrice = 0;
@@ -449,12 +449,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
             stageTokens = _wei.mul(stagePrice).div(1 ether);
            
             if(stageTokens <= privateEventTokens){
-                tokens = tokens.add(stageTokens);
-                privateEventTokens = privateEventTokens.sub(tokens);
+                tokens[0] = tokens[0].add(stageTokens);
+                privateEventTokens = privateEventTokens.sub(tokens[0]);
                 
                 if(extraWei > 0){
-                    require(returnExtra(msg.sender, extraWei));
-                    emit Transfer(address(this), msg.sender, extraWei);
+                    tokens[1] = extraWei;
+                    //emit Transfer(address(this), msg.sender, extraWei);
                 }
                 
                 return tokens;
@@ -462,8 +462,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 stageTokens = privateEventTokens;
                 privateEventActive = false;
                 stageWei = stageTokens.mul(1 ether).div(stagePrice);
-                tokens = tokens.add(stageTokens);
-                privateEventTokens = privateEventTokens.sub(tokens);
+                tokens[0] = tokens[0].add(stageTokens);
+                privateEventTokens = privateEventTokens.sub(tokens[0]);
                 _wei = _wei.sub(stageWei);
             }
         }
@@ -474,12 +474,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
             stageTokens = _wei.mul(stagePrice).div(1 ether);
            
             if(stageTokens <= publicEventTokens){
-                tokens = tokens.add(stageTokens);
-                publicEventTokens = publicEventTokens.sub(tokens);
+                tokens[0] = tokens[0].add(stageTokens);
+                publicEventTokens = publicEventTokens.sub(tokens[0]);
                 
                 if(extraWei > 0){
-                    require(returnExtra(msg.sender, extraWei));
-                    emit Transfer(address(this), msg.sender, extraWei);
+                    tokens[1] = stageWei;
+                    //emit Transfer(address(this), msg.sender, extraWei);
                 }
                 
                 return tokens;
@@ -487,8 +487,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 stageTokens = publicEventTokens;
                 publicEventActive = false;
                 stageWei = stageTokens.mul(1 ether).div(stagePrice);
-                tokens = tokens.add(stageTokens);
-                publicEventTokens = publicEventTokens.sub(tokens);
+                tokens[0] = tokens[0].add(stageTokens);
+                publicEventTokens = publicEventTokens.sub(tokens[0]);
                 _wei = _wei.sub(stageWei);
             }
         }
@@ -504,24 +504,23 @@ contract CrowdsaleToken is PausableToken, Configurable {
             stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(stageTokens) <= preSaleFirstCap) {
-            tokens = tokens.add(stageTokens);
+            tokens[0] = tokens[0].add(stageTokens);
             
             if(extraWei > 0){
-                require(returnExtra(msg.sender, extraWei));
-                emit Transfer(address(this), msg.sender, extraWei);
+                tokens[1] = extraWei;
             }
             
             return tokens;
           } else {
             stageTokens = preSaleFirstCap.sub(totalSold);
             stageWei = stageTokens.mul(1 ether).div(stagePrice);
-            tokens = tokens.add(stageTokens);
+            tokens[0] = tokens[0].add(stageTokens);
             _wei = _wei.sub(stageWei);
           }
         }
         
         // 50% discount
-        if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleSecondCap) {
+        if (currentStage == Stages.preSale && totalSold.add(tokens[0]) <= preSaleSecondCap) {
           if (saleDiscountList[msg.sender]) {
             stagePrice = privateDiscountPrice; // private member %65 discount
           } else {
@@ -530,25 +529,24 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
-          if (totalSold.add(tokens).add(stageTokens) <= preSaleSecondCap) {
-            tokens = tokens.add(stageTokens);
+          if (totalSold.add(tokens[0]).add(stageTokens) <= preSaleSecondCap) {
+            tokens[0] = tokens[0].add(stageTokens);
             
             if(extraWei > 0){
-                require(returnExtra(msg.sender, extraWei));
-                emit Transfer(address(this), msg.sender, extraWei);
+                tokens[1] = extraWei;
             }
         
             return tokens;
           } else {
-            stageTokens = preSaleSecondCap.sub(totalSold).sub(tokens);
+            stageTokens = preSaleSecondCap.sub(totalSold).sub(tokens[0]);
             stageWei = stageTokens.mul(1 ether).div(stagePrice);
-            tokens = tokens.add(stageTokens);
+            tokens[0] = tokens[0].add(stageTokens);
             _wei = _wei.sub(stageWei);
           }
         }
         
         // 35% discount
-        if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleThirdCap) {
+        if (currentStage == Stages.preSale && totalSold.add(tokens[0]) <= preSaleThirdCap) {
           if (saleDiscountList[msg.sender]) {
             stagePrice = privateDiscountPrice; // private member %65 discount
           } else {
@@ -556,24 +554,23 @@ contract CrowdsaleToken is PausableToken, Configurable {
           }
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
-          if (totalSold.add(tokens).add(stageTokens) <= preSaleThirdCap) {
-            tokens = tokens.add(stageTokens);
+          if (totalSold.add(tokens[0]).add(stageTokens) <= preSaleThirdCap) {
+            tokens[0] = tokens[0].add(stageTokens);
            
             if(extraWei > 0){
-                require(returnExtra(msg.sender, extraWei));
-                emit Transfer(address(this), msg.sender, extraWei);
+                tokens[1] = extraWei;
             }
         
             return tokens;
           } else {
-            stageTokens = preSaleThirdCap.sub(totalSold).sub(tokens);
+            stageTokens = preSaleThirdCap.sub(totalSold).sub(tokens[0]);
             stageWei = stageTokens.mul(1 ether).div(stagePrice);
-            tokens = tokens.add(stageTokens);
+            tokens[0] = tokens[0].add(stageTokens);
             _wei = _wei.sub(stageWei);
           }
         }
         // 20% discount
-        if (currentStage == Stages.preSale && totalSold.add(tokens) <= preSaleFourthCap) {
+        if (currentStage == Stages.preSale && totalSold.add(tokens[0]) <= preSaleFourthCap) {
           
           if (saleDiscountList[msg.sender]) {
             stagePrice = privateDiscountPrice; // private member %65 discount
@@ -583,26 +580,24 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
-          if (totalSold.add(tokens).add(stageTokens) <= preSaleFourthCap) {
-            tokens = tokens.add(stageTokens);
+          if (totalSold.add(tokens[0]).add(stageTokens) <= preSaleFourthCap) {
+            tokens[0] = tokens[0].add(stageTokens);
             
             if(extraWei > 0){
-                require(returnExtra(msg.sender, extraWei));
-                emit Transfer(address(this), msg.sender, extraWei);
+                tokens[1] = extraWei;
             }
         
             return tokens;
           } else {
-            stageTokens = preSaleFourthCap.sub(totalSold).sub(tokens);
+            stageTokens = preSaleFourthCap.sub(totalSold).sub(tokens[0]);
             stageWei = stageTokens.mul(1 ether).div(stagePrice);
-            tokens = tokens.add(stageTokens);
+            tokens[0] = tokens[0].add(stageTokens);
             _wei = _wei.sub(stageWei);
             currentStage = Stages.pause;
             
             if(_wei > 0 || extraWei > 0){
                 _wei = _wei.add(extraWei);
-                require(returnExtra(msg.sender, _wei));
-                emit Transfer(address(this), msg.sender, _wei);
+                tokens[1] = _wei;
             }
             return tokens;
           }
@@ -620,17 +615,16 @@ contract CrowdsaleToken is PausableToken, Configurable {
             }
             
             if (totalSold.add(stageTokens) <= ceil) {
-              tokens = tokens.add(stageTokens);
+              tokens[0] = tokens[0].add(stageTokens);
              
               if(extraWei > 0){
-                require(returnExtra(msg.sender, extraWei));
-                emit Transfer(address(this), msg.sender, extraWei);
+               tokens[1] = extraWei;
             }
         
               return tokens;          
             } else {
               stageTokens = ceil.sub(totalSold);
-              tokens = tokens.add(stageTokens);
+              tokens[0] = tokens[0].add(stageTokens);
               stageWei = stageTokens.mul(1 ether).div(stagePrice);
               _wei = _wei.sub(stageWei);
             }
@@ -639,8 +633,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
               endIco();
               if(_wei > 0 || extraWei > 0){
                 _wei = _wei.add(extraWei);
-                require(returnExtra(msg.sender, _wei));
-                emit Transfer(address(this), msg.sender, _wei);
+                tokens[1] = _wei;
               }
               return tokens;
             }
@@ -649,27 +642,25 @@ contract CrowdsaleToken is PausableToken, Configurable {
           stagePrice = basePrice;
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
-          if (totalSold.add(tokens).add(stageTokens) <= cap) {
-            tokens = tokens.add(stageTokens);
+          if (totalSold.add(tokens[0]).add(stageTokens) <= cap) {
+            tokens[0] = tokens[0].add(stageTokens);
             
             if(extraWei > 0){
-                require(returnExtra(msg.sender, extraWei));
-                emit Transfer(address(this), msg.sender, extraWei);
+                tokens[1] = extraWei;
             }
         
                 
             return tokens;
           } else {
-            stageTokens = cap.sub(totalSold).sub(tokens);
+            stageTokens = cap.sub(totalSold).sub(tokens[0]);
             stageWei = stageTokens.mul(1 ether).div(stagePrice);
-            tokens = tokens.add(stageTokens);
+            tokens[0] = tokens[0].add(stageTokens);
             _wei = _wei.sub(stageWei);
             endIco();
             
             if(_wei > 0 || extraWei > 0){
                 _wei = _wei.add(extraWei);
-                require(returnExtra(msg.sender, _wei));
-               emit Transfer(address(this), msg.sender, _wei);
+                tokens[1] = _wei;
             }
             return tokens;
           }      
