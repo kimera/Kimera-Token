@@ -341,6 +341,7 @@ contract Configurable {
     uint256 public constant preSaleThirdPrice = 4273504273504273504274; // pre sale 3 stage discount 35%, tokens per 1 ether
     uint256 public constant preSaleFourthPrice = 3472222222222222222222; // pre sale 4 stage discount 20%, tokens per 1 ether
     uint256 public constant privateDiscountPrice = 7936507936507936507937; // sale private discount 65%, tokens per 1 ether
+    uint256 public privateSold = 0;
     
     uint256 public icoStartDate = 0;
     uint256 public constant timeToBeBurned = 1 years;
@@ -398,14 +399,6 @@ contract CrowdsaleToken is PausableToken, Configurable {
      **/
     function () public payable {
         require(msg.value >= minContribute);
-        buyTokens();
-    }
-    
-    /**
-     * @dev function to buy tokens with
-     **/
-    function buyTokens() public payable {
-        require(msg.value >= minContribute);
         require(preSaleStartDate < now);
         require(currentStage != Stages.pause);
         require(currentStage != Stages.icoEnd);
@@ -436,11 +429,12 @@ contract CrowdsaleToken is PausableToken, Configurable {
         uint256 stagePrice = 0;
         uint256 totalSold = totalSupply_.sub(companyReserve);
         uint256 extraWei = 0;
+        bool ismember = false;
         
         // if sender sent more then maximum spending amount
         if(_wei > maxAmmount){
             extraWei = _wei.sub(maxAmmount);
-            _wei = _wei.sub(maxAmmount);
+            _wei = maxAmmount;
         }
         
         // if member is part of a private sale event
@@ -466,6 +460,28 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 privateEventTokens = privateEventTokens.sub(tokens[0]);
                 _wei = _wei.sub(stageWei);
             }
+        }
+        
+        // private member 
+        if (totalSold > preSaleFirstCap && privateSold <= privateLimit && saleDiscountList[msg.sender]) {
+            stagePrice = privateDiscountPrice; // private member %65 discount
+          
+          stageTokens = _wei.mul(stagePrice).div(1 ether);
+          
+          if (totalSold.add(tokens[0]).add(stageTokens) <= privateLimit) {
+            tokens[0] = tokens[0].add(stageTokens);
+            
+            if(extraWei > 0){
+                tokens[1] = extraWei;
+            }
+            privateSold = privateSold.sub(tokens[0]);
+            return tokens;
+          } else {
+            stageTokens = privateSold.sub(tokens[0]);
+            stageWei = stageTokens.mul(1 ether).div(stagePrice);
+            tokens[0] = tokens[0].add(stageTokens);
+            _wei = _wei.sub(stageWei);
+          }
         }
         
          // if public event is active and tokens available
@@ -498,8 +514,14 @@ contract CrowdsaleToken is PausableToken, Configurable {
         if (currentStage == Stages.preSale && totalSold <= preSaleFirstCap) {
           if (msg.value >= 10 ether) 
             stagePrice = preSaleDiscountPrice;
-          else 
-            stagePrice = preSaleFirstPrice;
+          else {
+              if (saleDiscountList[msg.sender]) {
+                  ismember = true;
+                stagePrice = privateDiscountPrice; // private member %65 discount
+              }
+            else
+                stagePrice = preSaleFirstPrice;
+          }
             
             stageTokens = _wei.mul(stagePrice).div(1 ether);
           
@@ -509,24 +531,31 @@ contract CrowdsaleToken is PausableToken, Configurable {
             if(extraWei > 0){
                 tokens[1] = extraWei;
             }
-            
             return tokens;
+          }
+            else if( ismember && totalSold.add(stageTokens) <= privateLimit) {
+                tokens[0] = tokens[0].add(stageTokens);
+                privateSold = privateSold.sub(tokens[0]);
+            
+            if(extraWei > 0){
+                tokens[1] = extraWei;
+            }
+            return tokens;
+            
           } else {
             stageTokens = preSaleFirstCap.sub(totalSold);
             stageWei = stageTokens.mul(1 ether).div(stagePrice);
             tokens[0] = tokens[0].add(stageTokens);
+            if(ismember)
+                privateSold = privateSold.sub(tokens[0]);
             _wei = _wei.sub(stageWei);
           }
         }
         
         // 50% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens[0]) <= preSaleSecondCap) {
-          if (saleDiscountList[msg.sender]) {
-            stagePrice = privateDiscountPrice; // private member %65 discount
-          } else {
               stagePrice = preSaleSecondPrice; 
-          }
-          
+
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(tokens[0]).add(stageTokens) <= preSaleSecondCap) {
@@ -547,11 +576,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
         
         // 35% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens[0]) <= preSaleThirdCap) {
-          if (saleDiscountList[msg.sender]) {
-            stagePrice = privateDiscountPrice; // private member %65 discount
-          } else {
             stagePrice = preSaleThirdPrice;
-          }
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
           if (totalSold.add(tokens[0]).add(stageTokens) <= preSaleThirdCap) {
@@ -571,12 +596,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
         }
         // 20% discount
         if (currentStage == Stages.preSale && totalSold.add(tokens[0]) <= preSaleFourthCap) {
-          
-          if (saleDiscountList[msg.sender]) {
-            stagePrice = privateDiscountPrice; // private member %65 discount
-          } else {
             stagePrice = preSaleFourthPrice;
-          }
           
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
@@ -605,7 +625,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
         
         // 0% discount
         if (currentStage == Stages.sale) {
-          if (saleDiscountList[msg.sender]) {
+          if (privateSold > privateLimit && saleDiscountList[msg.sender]) {
             stagePrice = privateDiscountPrice; // private member %65 discount
             stageTokens = _wei.mul(stagePrice).div(1 ether);
             uint256 ceil = totalSold.add(privateLimit);
@@ -620,7 +640,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
               if(extraWei > 0){
                tokens[1] = extraWei;
             }
-        
+            privateSold = privateSold.sub(tokens[0]);
               return tokens;          
             } else {
               stageTokens = ceil.sub(totalSold);
@@ -635,6 +655,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
                 _wei = _wei.add(extraWei);
                 tokens[1] = _wei;
               }
+              privateSold = privateSold.sub(tokens[0]);
               return tokens;
             }
           }
@@ -832,7 +853,7 @@ contract CrowdsaleToken is PausableToken, Configurable {
  * @dev Contract to create the Kimera Token
  **/
 contract KimeraToken is CrowdsaleToken {
-    string public constant name = "KIMERA Coin";
+    string public constant name = "KIMERACoin";
     string public constant symbol = "KIMERA";
     uint32 public constant decimals = 18;
 }
