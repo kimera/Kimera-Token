@@ -468,16 +468,18 @@ contract CrowdsaleToken is PausableToken, Configurable {
           
           stageTokens = _wei.mul(stagePrice).div(1 ether);
           
-          if (totalSold.add(tokens[0]).add(stageTokens) <= privateLimit) {
+          if (privateSold.add(tokens[0]).add(stageTokens) <= privateLimit) {
             tokens[0] = tokens[0].add(stageTokens);
             
             if(extraWei > 0){
                 tokens[1] = extraWei;
             }
-            privateSold = privateSold.sub(tokens[0]);
+            totalSold = totalSold.add(tokens[0]);
+            privateSold = privateSold.add(tokens[0]);
             return tokens;
           } else {
-            stageTokens = privateSold.sub(tokens[0]);
+            stageTokens = privateLimit.sub(privateSold);
+            privateSold = privateSold.add(stageTokens);
             stageWei = stageTokens.mul(1 ether).div(stagePrice);
             tokens[0] = tokens[0].add(stageTokens);
             _wei = _wei.sub(stageWei);
@@ -721,6 +723,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
             publicEventActive = isActive;
             publicMin = minAmount;
         }
+        else
+            require(1==2);
     }
     
     /**
@@ -740,6 +744,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
         // Turn public event on or off
         else if(compareStrings(eventType, "public"))
             publicEventActive = isActive;
+        else
+            require(1==2);
     }
 
     /**
@@ -753,6 +759,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
         // Set new min to Contribute
         else if(compareStrings(eventType,"min"))
             minContribute = minMax;
+        else
+            require(1==2);
     }
 
     /**
@@ -768,6 +776,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
         // Set private event member
         else if(compareStrings(memberType,"privateEvent"))
             customPrivateSale[_address] = isActiveMember;
+        else
+            require(1==2);
     }
     
     /**
@@ -782,6 +792,8 @@ contract CrowdsaleToken is PausableToken, Configurable {
         // Set private event member
         else if(compareStrings(memberType,"privateEvent"))
             return customPrivateSale[_address];
+        else
+            require(1==2);
     }
 
     /**
